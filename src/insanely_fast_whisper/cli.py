@@ -6,6 +6,7 @@ import torch
 
 from .utils.diarization_pipeline import diarize
 from .utils.result import build_result
+from .utils.convert_object_to_srt import process_object
 
 parser = argparse.ArgumentParser(description="Automatic Speech Recognition")
 parser.add_argument(
@@ -26,7 +27,7 @@ parser.add_argument(
     required=False,
     default="output.json",
     type=str,
-    help="Path to save the transcription output. (default: output.json)",
+    help="Path to save the transcription output. (default: output.json or default.srt if --format is srt)",
 )
 parser.add_argument(
     "--model-name",
@@ -107,6 +108,14 @@ parser.add_argument(
     type=int,
     help="Defines the maximum number of speakers that the system should consider in diarization. Must be at least 1. Cannot be used together with --num-speakers. Must be greater than or equal to --min-speakers if both are specified. (default: None)",
 )
+parser.add_argument(
+    "--format",
+    required=False,
+    default="json",
+    type=str,
+    choices=[ "srt" ],
+    help="Format of the output transcript. (default: json)",
+)
 
 def main():
     args = parser.parse_args()
@@ -164,19 +173,30 @@ def main():
             return_timestamps=ts,
         )
 
+    use_srt = False
+    if args.format == "srt":
+        args.transcript_path = "default.srt"
+        use_srt = True
+        
     if args.hf_token != "no_token":
         speakers_transcript = diarize(args, outputs)
-        with open(args.transcript_path, "w", encoding="utf8") as fp:
-            result = build_result(speakers_transcript, outputs)
-            json.dump(result, fp, ensure_ascii=False)
+        result = build_result(speakers_transcript, outputs)
+        if use_srt:
+            process_object(result,args.transcript_path)
+        else:
+            with open(args.transcript_path, "w", encoding="utf8") as fp:
+                json.dump(result, fp, ensure_ascii=False)
 
         print(
             f"Voila!✨ Your file has been transcribed & speaker segmented go check it out over here 👉 {args.transcript_path}"
         )
     else:
-        with open(args.transcript_path, "w", encoding="utf8") as fp:
-            result = build_result([], outputs)
-            json.dump(result, fp, ensure_ascii=False)
+        result = build_result([], outputs)
+        if use_srt:
+            process_object(result,args.transcript_path)
+        else:
+            with open(args.transcript_path, "w", encoding="utf8") as fp:
+                json.dump(result, fp, ensure_ascii=False)
 
         print(
             f"Voila!✨ Your file has been transcribed go check it out over here 👉 {args.transcript_path}"
